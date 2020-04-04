@@ -1,4 +1,6 @@
 import requests
+import re
+from tqdm import tqdm
 from bs4 import BeautifulSoup
 import openpyxl
 from tqdm import tqdm
@@ -6,13 +8,13 @@ from tqdm import tqdm
 wb = openpyxl.load_workbook('data.xlsx')
 sheet = wb.active
 sheet.title = 'UK Indie Retailers'
+EMAIL_REGEX = r'[^ ]+@[^ ]+'
 
 def scrape_data():
-    counter = 1
     retailer_counter = 2
+    counter = 1
 
-    while True:
-        print(counter)
+    for i in tqdm(range(2, 154)):
 
         url = f'https://www.indieretail.uk/find-a-shop/?page={counter}'
 
@@ -40,7 +42,7 @@ def scrape_data():
             company_website = shop_page_soup.find('a', {'itemprop':'url','target':'_blank'})
 
             if company_website is None:
-                company_website = "Not Listed"
+                company_website = "-"
             else:
                 company_website = company_website.text
 
@@ -48,6 +50,30 @@ def scrape_data():
             cell_1.value = company_name
             cell_2 = sheet.cell(row=retailer_counter, column=2)
             cell_2.value = company_website
+            cell_3 = sheet.cell(row=retailer_counter, column=3)
+
+            company_email = '-'
+
+            try:
+                hdr = {'User-Agent': 'Mozilla/5.0'}
+                company_page = requests.get(f'http://{company_website}', headers=hdr, timeout=5)
+
+                if company_page.status_code != 404:
+                    company_soup = BeautifulSoup(company_page.content, 'html.parser')
+                    company_links = company_soup.findAll('a')
+                    for link in company_links:
+                        text = link.text
+                        if len(re.findall(EMAIL_REGEX, text)) != 0:
+                            company_email = text
+                            break
+
+                cell_3.value = company_email
+
+            except:
+                cell_3.value = company_email
+
+            finally:
+                cell_3.value = company_email
 
             wb.save('complete_data.xlsx')
 
